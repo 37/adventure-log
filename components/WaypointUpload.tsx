@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,31 @@ interface WaypointUploadProps {
   onClose: () => void;
   onImageSaved: (waypointIdx: number, imageUrl: string) => void;
   waypointImages: Record<number, string>;
+}
+
+// Resize and compress an image file to a JPEG data URL.
+// Max 1200px wide, 82% quality — keeps typical photos under ~400 KB.
+function compressToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const blobUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(blobUrl);
+      const MAX_W = 1200;
+      let { width, height } = img;
+      if (width > MAX_W) {
+        height = Math.round((height * MAX_W) / width);
+        width = MAX_W;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    img.onerror = reject;
+    img.src = blobUrl;
+  });
 }
 
 function haversine(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -37,6 +62,7 @@ export default function WaypointUpload({
   const [suggestedWp, setSuggestedWp] = useState<Waypoint | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [step, setStep] = useState<"upload" | "confirm-gps">("upload");
+  const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
@@ -75,12 +101,20 @@ export default function WaypointUpload({
     if (file && file.type.startsWith("image/")) handleFile(file);
   };
 
-  const saveToWaypoint = (targetWp: Waypoint) => {
-    if (!preview) return;
-    onImageSaved(targetWp.index, preview);
-    resetState();
-    onClose();
-  };
+  const saveToWaypoint = useCallback(async (targetWp: Waypoint) => {
+    if (!pendingFile) return;
+    setSaving(true);
+    try {
+      const base64 = await compressToBase64(pendingFile);
+      onImageSaved(targetWp.index, base64);
+      resetState();
+      onClose();
+    } catch {
+      setSaving(false);
+    }
+  // resetState and onClose are stable refs — safe to omit
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFile, onImageSaved, onClose]);
 
   const resetState = () => {
     setPreview(null);
@@ -88,6 +122,7 @@ export default function WaypointUpload({
     setSuggestedWp(null);
     setPendingFile(null);
     setStep("upload");
+    setSaving(false);
   };
 
   const existing = waypoint ? waypointImages[waypoint.index] : null;
@@ -143,17 +178,19 @@ export default function WaypointUpload({
                     <Button
                       size="sm"
                       className="flex-1 text-xs"
+                      disabled={saving}
                       onClick={() => saveToWaypoint(suggestedWp)}
                     >
-                      Use GPS waypoint
+                      {saving ? "Saving…" : "Use GPS waypoint"}
                     </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       className="flex-1 text-xs"
+                      disabled={saving}
                       onClick={() => saveToWaypoint(waypoint)}
                     >
-                      Keep selected
+                      {saving ? "Saving…" : "Keep selected"}
                     </Button>
                   </div>
                 </div>
@@ -168,10 +205,14 @@ export default function WaypointUpload({
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={preview} alt="Preview" className="w-full rounded-lg max-h-48 object-cover border border-border/30" />
                     <div className="flex gap-2">
-                      <Button className="flex-1" onClick={() => saveToWaypoint(waypoint)}>
-                        Save to Waypoint
+                      <Button
+                        className="flex-1"
+                        disabled={saving}
+                        onClick={() => saveToWaypoint(waypoint)}
+                      >
+                        {saving ? "Saving…" : "Save to Waypoint"}
                       </Button>
-                      <Button variant="outline" onClick={resetState}>
+                      <Button variant="outline" disabled={saving} onClick={resetState}>
                         Remove
                       </Button>
                     </div>

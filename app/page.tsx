@@ -47,7 +47,27 @@ export default function AdventureLogPage() {
   const [panelOpen, setPanelOpen] = useState(true);
   const [mapZoom, setMapZoom] = useState(6);
   const [selectedWaypoint, setSelectedWaypoint] = useState<Waypoint | null>(null);
-  const [waypointImages, setWaypointImages] = useState<Record<number, string>>({});
+
+  // Hydrate from localStorage on first render; fall back to empty object.
+  const [waypointImages, setWaypointImages] = useState<Record<number, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const stored = localStorage.getItem("adventure-log-wp-images");
+      return stored ? (JSON.parse(stored) as Record<number, string>) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Persist to localStorage whenever the images map changes.
+  useEffect(() => {
+    try {
+      localStorage.setItem("adventure-log-wp-images", JSON.stringify(waypointImages));
+    } catch (e) {
+      // Quota exceeded — gracefully ignore; existing entries are unaffected.
+      console.warn("localStorage quota exceeded — photo not persisted", e);
+    }
+  }, [waypointImages]);
 
   const handleHighlightChange = useCallback(
     (key: keyof HighlightState, value: boolean) => {

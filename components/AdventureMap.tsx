@@ -11,10 +11,14 @@ import {
   type Waypoint,
 } from "@/lib/journey-data";
 
-// Night watch UTC hours (approximate local 6pm–6am for ACST/AEST)
-const isNightUTC = (isoTime: string): boolean => {
-  const h = new Date(isoTime).getUTCHours();
-  return h >= 8 && h < 21;
+// True night watch: local 6pm–6am using correct timezone per longitude.
+// lon < 138° → ACST (UTC+9:30)  |  lon ≥ 138° → AEST (UTC+10)
+const isLocalNight = (isoTime: string, lon: number): boolean => {
+  const utcMs = new Date(isoTime).getTime();
+  const offsetMs = (lon >= 138 ? 10 : 9.5) * 60 * 60 * 1000;
+  const localDate = new Date(utcMs + offsetMs);
+  const h = localDate.getUTCHours(); // UTC of shifted date = local hour
+  return h >= 18 || h < 6;
 };
 
 interface HighlightState {
@@ -166,7 +170,7 @@ export default function AdventureMap({
     let nightSegment: [number, number][] = [];
     for (let i = 0; i < WAYPOINTS.length; i++) {
       const wp = WAYPOINTS[i];
-      if (isNightUTC(wp.time)) {
+      if (isLocalNight(wp.time, wp.lon)) {
         nightSegment.push([wp.lat, wp.lon]);
       } else {
         if (nightSegment.length > 1) {

@@ -11,13 +11,12 @@ import {
   type Waypoint,
 } from "@/lib/journey-data";
 
-// True night watch: local 6pm–6am using correct timezone per longitude.
-// lon < 138° → ACST (UTC+9:30)  |  lon ≥ 138° → AEST (UTC+10)
-const isLocalNight = (isoTime: string, lon: number): boolean => {
-  const utcMs = new Date(isoTime).getTime();
-  const offsetMs = (lon >= 138 ? 10 : 9.5) * 60 * 60 * 1000;
-  const localDate = new Date(utcMs + offsetMs);
-  const h = localDate.getUTCHours(); // UTC of shifted date = local hour
+// iSailor records the device's local clock but mislabels it with "Z".
+// The timestamps are already in local time (ACST/AEST), so we read the
+// hour directly from the recorded value — no offset conversion needed.
+// Night watch = local 6pm–6am → h >= 18 || h < 6.
+const isLocalNight = (isoTime: string): boolean => {
+  const h = new Date(isoTime).getUTCHours(); // raw hour = local time
   return h >= 18 || h < 6;
 };
 
@@ -170,7 +169,7 @@ export default function AdventureMap({
     let nightSegment: [number, number][] = [];
     for (let i = 0; i < WAYPOINTS.length; i++) {
       const wp = WAYPOINTS[i];
-      if (isLocalNight(wp.time, wp.lon)) {
+      if (isLocalNight(wp.time)) {
         nightSegment.push([wp.lat, wp.lon]);
       } else {
         if (nightSegment.length > 1) {

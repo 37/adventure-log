@@ -192,6 +192,15 @@ export default function AdventureMap({
       }).addTo(nightLayer);
     }
 
+    // Shared helper: label positioned to the east (right) of the route.
+    // iconSize [0,0] + iconAnchor [0,0] puts the top-left of the div at the
+    // anchor point; the label naturally extends rightward from there.
+    const makeLabelIcon = (html: string) =>
+      L.divIcon({ className: "", html, iconSize: [0, 0], iconAnchor: [0, 0] });
+
+    // East offset in degrees lon — shifts the label clear of the route line.
+    const LABEL_LON_OFFSET = 0.12;
+
     // Top speed 1h layer
     const topSpeedLayer = L.layerGroup();
     layersRef.current["topSpeed"] = topSpeedLayer;
@@ -204,13 +213,12 @@ export default function AdventureMap({
         dashArray: "12 5",
       }).addTo(topSpeedLayer);
       const midLat = (fromLat + toLat) / 2;
-      const midLon = (fromLon + toLon) / 2;
-      const icon = L.divIcon({
-        className: "",
-        html: `<div style="background:rgba(7,16,31,0.92);border:2px solid #facc15;border-radius:8px;padding:4px 8px;font-size:11px;color:#facc15;white-space:nowrap;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.5)">⚡ Top Speed: ${speed} kn</div>`,
-        iconAnchor: [50, 20],
-      });
-      L.marker([midLat, midLon], { icon }).addTo(topSpeedLayer);
+      const midLon = (fromLon + toLon) / 2 + LABEL_LON_OFFSET;
+      L.marker([midLat, midLon], {
+        icon: makeLabelIcon(
+          `<div style="background:rgba(7,16,31,0.92);border:2px solid #facc15;border-radius:8px;padding:5px 10px;font-size:11px;color:#facc15;white-space:nowrap;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,0.6);transform:translateY(-50%)">⚡ Top Speed: ${speed} kn</div>`
+        ),
+      }).addTo(topSpeedLayer);
     }
 
     // Fastest 6h layer
@@ -229,12 +237,11 @@ export default function AdventureMap({
       }).addTo(fastest6hLayer);
       if (segPts.length > 0) {
         const mid = segPts[Math.floor(segPts.length / 2)];
-        const icon = L.divIcon({
-          className: "",
-          html: `<div style="background:rgba(7,16,31,0.92);border:2px solid #f97316;border-radius:8px;padding:4px 8px;font-size:11px;color:#f97316;white-space:nowrap;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.5)">🔥 Best 6h: ${speed} kn avg</div>`,
-          iconAnchor: [60, 20],
-        });
-        L.marker(mid, { icon }).addTo(fastest6hLayer);
+        L.marker([mid[0], mid[1] + LABEL_LON_OFFSET], {
+          icon: makeLabelIcon(
+            `<div style="background:rgba(7,16,31,0.92);border:2px solid #f97316;border-radius:8px;padding:5px 10px;font-size:11px;color:#f97316;white-space:nowrap;font-weight:600;box-shadow:0 4px 16px rgba(0,0,0,0.6);transform:translateY(-50%)">🔥 Best 6h: ${speed} kn avg</div>`
+          ),
+        }).addTo(fastest6hLayer);
       }
     }
 
